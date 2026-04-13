@@ -1,16 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { getRooms, getAvailableRooms, createRoom, updateRoom, deleteRoom } = require('../controllers/roomController');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { getRooms, getAvailableRooms, getRoomById, createRoom, updateRoom, deleteRoom, assignStudent } = require('../controllers/roomController');
+const { protect, admin, warden } = require('../middleware/authMiddleware');
+const { roomValidation } = require('../middleware/validationMiddleware');
 
-router.route('/')
-  .get(protect, getRooms)
-  .post(protect, admin, createRoom);
-
+router.get('/', protect, getRooms);
 router.get('/available', protect, getAvailableRooms);
-
-router.route('/:id')
-  .put(protect, admin, updateRoom)
-  .delete(protect, admin, deleteRoom);
+router.get('/:id', protect, getRoomById);
+router.post('/', protect, admin, roomValidation.create, createRoom);
+router.put('/:id', protect, admin, updateRoom);
+router.delete('/:id', protect, admin, deleteRoom);
+router.post('/:id/assign', protect, warden, assignStudent);
 
 module.exports = router;

@@ -1,19 +1,37 @@
-const Complaint = require('../models/Complaint.js');
+const supabase = require('../config/supabase');
 
-// @desc    Create new complaint
+// @desc    Create complaint
 // @route   POST /api/complaints
-// @access  Private (Student only)
+// @access  Private (Student)
 const createComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.create({
-      ...req.body,
-      studentId: req.user._id,
-      studentName: req.user.name,
-      roomNumber: req.user.roomNumber
+    const { title, description, type, priority = 'medium' } = req.body;
+    
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .insert([{
+        student_id: req.user.id,
+        title,
+        description,
+        type,
+        priority,
+        status: 'pending'
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.status(201).json({
+      success: true,
+      message: 'Complaint submitted successfully',
+      data: complaint
     });
-    res.status(201).json(complaint);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -23,25 +41,48 @@ const createComplaint = async (req, res) => {
 const getComplaints = async (req, res) => {
   try {
     const { status, type, priority } = req.query;
-    let query = {};
     
-    if (status) query.status = status;
-    if (type) query.type = type;
-    if (priority) query.priority = priority;
+    let query = supabase
+      .from('complaints')
+      .select(`
+        *,
+        profiles:student_id (name, roll_number, room_number)
+      `);
     
-    // If student, show only their complaints
+    // Filter by user role
     if (req.user.role === 'student') {
-      query.studentId = req.user._id;
+      query = query.eq('student_id', req.user.id);
     }
     
-    const complaints = await Complaint.find(query)
-      .sort({ createdAt: -1, priority: -1 })
-      .populate('studentId', 'name rollNumber phone')
-      .populate('assignedTo', 'name');
+    // Apply filters
+    if (status) query = query.eq('status', status);
+    if (type) query = query.eq('type', type);
+    if (priority) query = query.eq('priority', priority);
     
-    res.json(complaints);
+    const { data: complaints, error } = await query
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    // Calculate statistics
+    const stats = {
+      total: complaints.length,
+      pending: complaints.filter(c => c.status === 'pending').length,
+      inProgress: complaints.filter(c => c.status === 'in-progress').length,
+      resolved: complaints.filter(c => c.status === 'resolved').length,
+      rejected: complaints.filter(c => c.status === 'rejected').length
+    };
+    
+    res.json({
+      success: true,
+      stats,
+      data: complaints
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -50,22 +91,41 @@ const getComplaints = async (req, res) => {
 // @access  Private
 const getComplaintById = async (req, res) => {
   try {
-    const complaint = await Complaint.findById(req.params.id)
-      .populate('studentId', 'name rollNumber phone roomNumber')
-      .populate('assignedTo', 'name email');
+    const { id } = req.params;
     
-    if (!complaint) {
-      return res.status(404).json({ message: 'Complaint not found' });
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .select(`
+        *,
+        profiles:student_id (name, email, roll_number, room_number, phone)
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error || !complaint) {
+      return res.status(404).json({
+        success: false,
+        message: 'Complaint not found'
+      });
     }
     
-    // Check if user is authorized to view this complaint
-    if (req.user.role === 'student' && complaint.studentId._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to view this complaint' });
+    // Check authorization
+    if (req.user.role === 'student' && complaint.student_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this complaint'
+      });
     }
     
-    res.json(complaint);
+    res.json({
+      success: true,
+      data: complaint
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -74,54 +134,65 @@ const getComplaintById = async (req, res) => {
 // @access  Private (Warden/Admin)
 const updateComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ message: 'Complaint not found' });
+    const { id } = req.params;
+    const { status, priority, remarks } = req.body;
+    
+    const updates = {};
+    if (status) updates.status = status;
+    if (priority) updates.priority = priority;
+    if (remarks) updates.remarks = remarks;
+    if (status === 'resolved') updates.resolved_at = new Date().toISOString();
+    
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
     }
     
-    // If status is being changed to resolved, add resolvedAt date
-    if (req.body.status === 'resolved' && complaint.status !== 'resolved') {
-      req.body.resolvedAt = Date.now();
-    }
-    
-    // Add remarks if provided
-    if (req.body.remark) {
-      const remark = {
-        message: req.body.remark,
-        postedBy: req.user.name,
-        date: Date.now()
-      };
-      complaint.remarks.push(remark);
-      await complaint.save();
-      delete req.body.remark;
-    }
-    
-    const updatedComplaint = await Complaint.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-    
-    res.json(updatedComplaint);
+    res.json({
+      success: true,
+      message: 'Complaint updated successfully',
+      data: complaint
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
 // @desc    Delete complaint
 // @route   DELETE /api/complaints/:id
-// @access  Private (Admin only)
+// @access  Private (Admin)
 const deleteComplaint = async (req, res) => {
   try {
-    const complaint = await Complaint.findById(req.params.id);
-    if (!complaint) {
-      return res.status(404).json({ message: 'Complaint not found' });
-    }
+    const { id } = req.params;
     
-    await complaint.deleteOne();
-    res.json({ message: 'Complaint deleted successfully' });
+    const { error } = await supabase
+      .from('complaints')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      message: 'Complaint deleted successfully'
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 

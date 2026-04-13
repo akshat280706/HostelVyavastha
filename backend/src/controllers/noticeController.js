@@ -1,54 +1,108 @@
-const Notice = require('../models/Notice,js');
+const supabase = require('../config/supabase');
 
 // @desc    Create notice
 // @route   POST /api/notices
 // @access  Private (Admin/Warden)
 const createNotice = async (req, res) => {
   try {
-    const notice = await Notice.create({
-      ...req.body,
-      author: req.user._id,
-      authorName: req.user.name
+    const { title, content, category, isImportant, expiryDate } = req.body;
+    
+    const { data: notice, error } = await supabase
+      .from('notices')
+      .insert([{
+        title,
+        content,
+        category: category || 'general',
+        is_important: isImportant || false,
+        author_id: req.user.id,
+        expiry_date: expiryDate || null
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.status(201).json({
+      success: true,
+      message: 'Notice created successfully',
+      data: notice
     });
-    res.status(201).json(notice);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
 // @desc    Get all notices
 // @route   GET /api/notices
-// @access  Public/Private
+// @access  Public
 const getNotices = async (req, res) => {
   try {
     const { category, important } = req.query;
-    let query = { isActive: true };
     
-    if (category) query.category = category;
-    if (important === 'true') query.isImportant = true;
+    let query = supabase
+      .from('notices')
+      .select(`
+        *,
+        profiles:author_id (name)
+      `)
+      .eq('is_active', true);
     
-    const notices = await Notice.find(query)
-      .sort({ isImportant: -1, createdAt: -1 })
-      .populate('author', 'name');
+    if (category) query = query.eq('category', category);
+    if (important === 'true') query = query.eq('is_important', true);
     
-    res.json(notices);
+    const { data: notices, error } = await query
+      .order('is_important', { ascending: false })
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      data: notices
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
 // @desc    Get single notice
 // @route   GET /api/notices/:id
-// @access  Public/Private
+// @access  Public
 const getNoticeById = async (req, res) => {
   try {
-    const notice = await Notice.findById(req.params.id).populate('author', 'name email');
-    if (!notice) {
-      return res.status(404).json({ message: 'Notice not found' });
+    const { id } = req.params;
+    
+    const { data: notice, error } = await supabase
+      .from('notices')
+      .select(`
+        *,
+        profiles:author_id (name, email)
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error || !notice) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notice not found'
+      });
     }
-    res.json(notice);
+    
+    res.json({
+      success: true,
+      data: notice
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -57,33 +111,59 @@ const getNoticeById = async (req, res) => {
 // @access  Private (Admin/Warden)
 const updateNotice = async (req, res) => {
   try {
-    const notice = await Notice.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!notice) {
-      return res.status(404).json({ message: 'Notice not found' });
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const { data: notice, error } = await supabase
+      .from('notices')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
     }
-    res.json(notice);
+    
+    res.json({
+      success: true,
+      message: 'Notice updated successfully',
+      data: notice
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
 // @desc    Delete notice
 // @route   DELETE /api/notices/:id
-// @access  Private (Admin only)
+// @access  Private (Admin)
 const deleteNotice = async (req, res) => {
   try {
-    const notice = await Notice.findById(req.params.id);
-    if (!notice) {
-      return res.status(404).json({ message: 'Notice not found' });
-    }
-    await notice.deleteOne();
-    res.json({ message: 'Notice deleted successfully' });
+    const { id } = req.params;
+    
+    const { error } = await supabase
+      .from('notices')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      message: 'Notice deleted successfully'
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 

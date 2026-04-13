@@ -1,13 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const {
-  createFee,
-  getFees,
-  getFeeById,
-  updateFee,
-  deleteFee,
-  getStudentFeeSummary
-} = require('../controllers/feeController');
+const { createFee, getFees, getFeeById, updateFee, deleteFee, getStudentFeeSummary } = require('../controllers/feeController');
 const { protect, admin, warden } = require('../middleware/authMiddleware');
 
 router.post('/', protect, admin, createFee);
