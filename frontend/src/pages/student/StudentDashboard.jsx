@@ -1,8 +1,10 @@
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const stats = [
     { label: 'Attendance', value: '94%', icon: Calendar, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -24,6 +26,13 @@ export default function StudentDashboard() {
     { title: 'Fee Payment Deadline', date: 'Apr 30, 2026', time: '11:59 PM' },
   ];
 
+  const actions = [
+    { label: 'View Attendance', path: '/student/attendance' },
+    { label: 'Pay Fees', path: '/student/fees' },
+    { label: 'Submit Complaint', path: '/student/complaints' },
+    { label: 'View Notices', path: '/student/notices' },
+  ];
+
   const statusColor = (status) => {
     if (status === 'present' || status === 'resolved') return 'var(--status-green)';
     if (status === 'pending') return 'var(--status-yellow)';
@@ -32,6 +41,7 @@ export default function StudentDashboard() {
 
   return (
     <div>
+      {/* Stats */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
         {stats.map((stat, idx) => (
           <div key={idx} className="stat-card">
@@ -44,6 +54,7 @@ export default function StudentDashboard() {
         ))}
       </div>
 
+      {/* Activity + Events */}
       <div className="two-column-grid">
         <div className="activity-list">
           <h3>Recent Activity</h3>
@@ -53,7 +64,10 @@ export default function StudentDashboard() {
                 <div className="activity-item-title">{activity.title}</div>
                 <div className="activity-item-meta">{activity.date}</div>
               </div>
-              <div className="activity-item-time" style={{ color: statusColor(activity.status) }}>
+              <div
+                className="activity-item-time"
+                style={{ color: statusColor(activity.status) }}
+              >
                 {activity.status}
               </div>
             </div>
@@ -74,21 +88,44 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {/* Quick Actions */}
       <div className="activity-list" style={{ marginTop: '24px' }}>
         <h3>Quick Actions</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '12px' }}>
-          {['View Attendance', 'Pay Fees', 'Submit Complaint', 'View Notices'].map((label) => (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px',
+            marginTop: '12px',
+          }}
+        >
+          {actions.map((action) => (
             <button
-              key={label}
+              key={action.label}
+              onClick={() => navigate(action.path)}
               style={{
-                padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)',
-                background: 'var(--bg-surface-hover)', color: 'var(--text-secondary)',
-                fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s ease', fontWeight: '500',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-light)',
+                background: 'var(--bg-surface-hover)',
+                color: 'var(--text-secondary)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                fontWeight: '500',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = 'var(--accent-blue)'; e.currentTarget.style.borderColor = 'var(--accent-blue)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface-hover)'; e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'white';
+                e.currentTarget.style.color = 'var(--accent-blue)';
+                e.currentTarget.style.borderColor = 'var(--accent-blue)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-surface-hover)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border-light)';
+              }}
             >
-              {label}
+              {action.label}
             </button>
           ))}
         </div>
