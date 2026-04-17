@@ -1,4 +1,4 @@
-App.css - Global Design System
+/* App.css - Global Design System */
 
 /* ------------------ */
 /* 🎨 Design Tokens */
@@ -59,14 +59,16 @@ body {
 .app-root {
   display: flex;
   min-height: 100vh;
-  background: var(--bg-app);
+  background: transparent;
 }
 
 /* Sidebar */
 .app-sidebar {
   width: 256px;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid var(--border-light);
   padding: var(--spacing-2xl);
   display: flex;
   flex-direction: column;
@@ -125,8 +127,10 @@ body {
 /* Topbar */
 .app-topbar {
   height: 64px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -173,8 +177,10 @@ body {
 
 /* Cards */
 .card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: var(--spacing-lg);
 }
