@@ -1,33 +1,98 @@
 import { useState, useEffect } from 'react';
-import { studentsData } from '../../data/studentsData';
-import { attendanceRecords } from '../../data/attendanceData';
+import { userService, attendanceService } from '../../services/api';
 import { Search, CheckCircle, XCircle, Download } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export default function AdminAttendance() {
   const [students, setStudents] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
+  // Fetch students from backend
   useEffect(() => {
-    const todayRecords = attendanceRecords.filter(r => r.date === selectedDate);
-    const studentsWithAttendance = studentsData.map(student => {
-      const record = todayRecords.find(r => r.studentId === student.id);
-      return { ...student, status: record?.status || 'absent', checkIn: record?.checkIn };
+    fetchStudents();
+  }, []);
+
+  // Fetch attendance for selected date
+  useEffect(() => {
+    if (students.length > 0) {
+      fetchAttendanceForDate();
+    }
+  }, [selectedDate, students]);
+
+  const fetchStudents = async () => {
+    setLoading(true);
+    const response = await userService.getStudents({ limit: 100 }); // Get all students
+    if (response.success) {
+      const studentsList = response.data || [];
+      // Initialize with absent status
+      const studentsWithStatus = studentsList.map(student => ({
+        ...student,
+        status: 'absent',
+        checkIn: null,
+        attendanceId: null
+      }));
+      setStudents(studentsWithStatus);
+    } else {
+      toast.error('Failed to load students');
+    }
+    setLoading(false);
+  };
+
+  const fetchAttendanceForDate = async () => {
+    const response = await attendanceService.getAttendance({
+      startDate: selectedDate,
+      endDate: selectedDate
     });
-    setStudents(studentsWithAttendance);
-  }, [selectedDate]);
+    
+    if (response.success && response.data) {
+      // Update students with attendance data
+      setStudents(prev => prev.map(student => {
+        const attendance = response.data.find(a => a.student_id === student.id);
+        if (attendance) {
+          return {
+            ...student,
+            status: attendance.status,
+            checkIn: attendance.check_in_time,
+            attendanceId: attendance.id
+          };
+        }
+        return student;
+      }));
+    }
+  };
+
+  const markAttendance = async (studentId, status) => {
+    setSubmitting(true);
+    const response = await attendanceService.markAttendance({
+      studentId,
+      status,
+      checkInTime: status === 'present' ? new Date().toLocaleTimeString() : null
+    });
+    
+    if (response.success) {
+      toast.success(`Attendance marked as ${status}`);
+      // Update local state
+      setStudents(prev => prev.map(student => 
+        student.id === studentId 
+          ? { ...student, status, checkIn: status === 'present' ? new Date().toLocaleTimeString() : null }
+          : student
+      ));
+    } else {
+      toast.error(response.message || 'Failed to mark attendance');
+    }
+    setSubmitting(false);
+  };
 
   const filteredStudents = students.filter(student => {
     const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.roll_number?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch && (filter === 'all' || student.status === filter);
   });
-
-  const toggleAttendance = (studentId, newStatus) => {
-    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s));
-  };
 
   const stats = {
     present: students.filter(s => s.status === 'present').length,
@@ -37,6 +102,14 @@ export default function AdminAttendance() {
       ? Math.round((students.filter(s => s.status === 'present').length / students.length) * 100)
       : 0,
   };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <div>Loading students...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -50,7 +123,22 @@ export default function AdminAttendance() {
             className="form-input"
             style={{ width: 'auto', padding: '6px 12px' }}
           />
-          <button className="btn-submit" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}>
+          <button 
+            className="btn-submit" 
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
+            onClick={() => {
+              // Export functionality
+              const csv = students.map(s => `${s.name},${s.roll_number},${s.room_number},${s.status}`).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `attendance_${selectedDate}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success('Export started');
+            }}
+          >
             <Download size={16} /> Export
           </button>
         </div>
@@ -63,15 +151,15 @@ export default function AdminAttendance() {
         </div>
         <div className="stat-card">
           <div className="stat-card-label">Present</div>
-          <div className="stat-card-value" style={{ color: 'var(--status-green)' }}>{stats.present}</div>
+          <div className="stat-card-value" style={{ color: '#22c55e' }}>{stats.present}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card-label">Absent</div>
-          <div className="stat-card-value" style={{ color: 'var(--status-red)' }}>{stats.absent}</div>
+          <div className="stat-card-value" style={{ color: '#ef4444' }}>{stats.absent}</div>
         </div>
         <div className="stat-card">
           <div className="stat-card-label">Attendance Rate</div>
-          <div className="stat-card-value" style={{ color: 'var(--accent-blue)' }}>{stats.percentage}%</div>
+          <div className="stat-card-value" style={{ color: '#3b82f6' }}>{stats.percentage}%</div>
         </div>
       </div>
 
@@ -95,9 +183,9 @@ export default function AdminAttendance() {
               style={{
                 padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '500',
                 cursor: 'pointer', border: '1px solid', textTransform: 'capitalize', transition: 'all 0.15s ease',
-                background: filter === s ? 'var(--accent-blue)' : 'white',
-                color: filter === s ? 'white' : 'var(--text-secondary)',
-                borderColor: filter === s ? 'var(--accent-blue)' : 'var(--border-medium)',
+                background: filter === s ? '#3b82f6' : 'white',
+                color: filter === s ? 'white' : '#64748b',
+                borderColor: filter === s ? '#3b82f6' : '#e2e8f0',
               }}
             >
               {s} ({s === 'all' ? stats.total : s === 'present' ? stats.present : stats.absent})
@@ -123,15 +211,15 @@ export default function AdminAttendance() {
               {filteredStudents.map((student) => (
                 <tr key={student.id}>
                   <td><div className="student-name">{student.name}</div></td>
-                  <td>{student.rollNumber}</td>
-                  <td>{student.roomNumber || 'Not Assigned'}</td>
+                  <td>{student.roll_number || '—'}</td>
+                  <td>{student.room_number || 'Not Assigned'}</td>
                   <td>
                     {student.status === 'present' ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--status-green)', fontSize: '13px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#22c55e', fontSize: '13px' }}>
                         <CheckCircle size={14} /> Present
                       </span>
                     ) : (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--status-red)', fontSize: '13px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '13px' }}>
                         <XCircle size={14} /> Absent
                       </span>
                     )}
@@ -140,16 +228,35 @@ export default function AdminAttendance() {
                   <td>
                     <div className="status-buttons">
                       <button
-                        onClick={() => toggleAttendance(student.id, 'present')}
+                        onClick={() => markAttendance(student.id, 'present')}
+                        disabled={submitting}
                         className="btn-status btn-present"
-                        style={{ opacity: student.status === 'present' ? 1 : 0.45 }}
+                        style={{ 
+                          opacity: student.status === 'present' ? 1 : 0.45,
+                          padding: '4px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: '#22c55e',
+                          color: 'white',
+                          marginRight: '4px'
+                        }}
                       >
                         Present
                       </button>
                       <button
-                        onClick={() => toggleAttendance(student.id, 'absent')}
+                        onClick={() => markAttendance(student.id, 'absent')}
+                        disabled={submitting}
                         className="btn-status btn-absent"
-                        style={{ opacity: student.status === 'absent' ? 1 : 0.45 }}
+                        style={{ 
+                          opacity: student.status === 'absent' ? 1 : 0.45,
+                          padding: '4px 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: '#ef4444',
+                          color: 'white'
+                        }}
                       >
                         Absent
                       </button>

@@ -1,6 +1,7 @@
+import { Toaster } from 'react-hot-toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-
+import Register from './pages/Register';
 // Admin Pages
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -22,6 +23,7 @@ import StudentProfile from './pages/student/StudentProfile';
 
 // Auth Pages
 import Login from './pages/Login';
+import AdminStudents from './pages/admin/AdminStudents';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -38,14 +40,14 @@ function AppRoutes() {
   }
 
   if (!user) {
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
-    );
-  }
-
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
+  );
+}
   // Admin Routes
   if (user.role === 'admin') {
     return (
@@ -61,6 +63,7 @@ function AppRoutes() {
         </Route>
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/admin/dashboard" />} />
+        <Route path="students" element={<AdminStudents />} />
       </Routes>
     );
   }
@@ -88,11 +91,10 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <Toaster position="top-right" />
         <AppRoutes />
       </AuthProvider>
     </Router>
   );
-
 }
-
 export default App;

@@ -6,25 +6,30 @@ export default function Login() {
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { login, error } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setIsLoading(true);
     
-    const success = login(email, password, role);
+    const result = await login(email, password);
     
-    if (success) {
-      if (role === 'admin') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/student/dashboard');
+    if (result.success) {
+      // Get user from localStorage after login
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.role === 'admin' || user.role === 'warden') {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/student/dashboard');
+        }
       }
-    } else {
-      setError('Invalid credentials. Use admin@hostel.edu for admin or any email for student.');
     }
+    
+    setIsLoading(false);
   };
 
   return (
@@ -36,32 +41,16 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="role-selector">
-            <button
-              type="button"
-              className={`role-btn ${role === 'student' ? 'active' : ''}`}
-              onClick={() => setRole('student')}
-            >
-              Student
-            </button>
-            <button
-              type="button"
-              className={`role-btn ${role === 'admin' ? 'active' : ''}`}
-              onClick={() => setRole('admin')}
-            >
-              Admin
-            </button>
-          </div>
-
           <div className="form-group">
             <label className="form-label">Email Address</label>
             <input
               type="email"
               className="form-input"
-              placeholder={role === 'admin' ? 'admin@hostel.edu' : 'your.email@university.edu'}
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -74,6 +63,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -83,15 +73,21 @@ export default function Login() {
             </div>
           )}
 
-          <button type="submit" className="btn-submit full-width">
-            Sign In
+          <button 
+            type="submit" 
+            className="btn-submit full-width"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <div className="demo-note">
-          <p className="text-xs text-gray-500 mb-1">Demo Credentials:</p>
-          <p className="text-xs text-gray-500">Admin: admin@hostel.edu / any password</p>
-          <p className="text-xs text-gray-500">Student: any email / any password</p>
+        {/* Demo credentials note */}
+        <div className="demo-note" style={{ marginTop: '20px', padding: '12px', background: '#f0fdf4', borderRadius: '8px' }}>
+          <p className="text-xs text-green-800 mb-1">Demo Credentials:</p>
+          <p className="text-xs text-green-700">Admin: admin@hostel.edu / password123</p>
+          <p className="text-xs text-green-700">Student: student@university.edu / password123</p>
+          <p className="text-xs text-gray-500 mt-2">Note: Create users via registration or add them in Supabase</p>
         </div>
       </div>
     </div>

@@ -1,52 +1,122 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { dashboardService, attendanceService, feeService } from '../../services/api';
+import { Calendar, DollarSign, AlertCircle, CheckCircle, Users, Home } from 'lucide-react';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    attendance: { rate: 0, present: 0, total: 0 },
+    fees: { total: 0, paid: 0, due: 0 },
+    complaints: { total: 0, pending: 0, resolved: 0 }
+  });
+  const [loading, setLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState([]);
 
-  const stats = [
-    { label: 'Attendance', value: '94%', icon: Calendar, color: 'text-blue-500', bg: 'bg-blue-50' },
-    { label: 'Fee Status', value: 'Partial', icon: DollarSign, color: 'text-yellow-500', bg: 'bg-yellow-50' },
-    { label: 'Due Amount', value: '₹20,000', icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50' },
-    { label: 'Room', value: user?.roomNumber, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50' },
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    
+    // Fetch attendance for current student
+    const attendanceRes = await attendanceService.getAttendance();
+    if (attendanceRes.success) {
+      setStats(prev => ({
+        ...prev,
+        attendance: attendanceRes.stats || { rate: 0, present: 0, total: 0 }
+      }));
+      
+      // Create recent activity from attendance
+      const recent = attendanceRes.data?.slice(0, 5).map(a => ({
+        title: `Attendance marked as ${a.status}`,
+        date: new Date(a.date).toLocaleDateString(),
+        status: a.status
+      })) || [];
+      setRecentActivity(recent);
+    }
+    
+    // Fetch fees for current student
+    if (user?.id) {
+      const feesRes = await feeService.getStudentFeeSummary(user.id);
+      if (feesRes.success && feesRes.data) {
+        setStats(prev => ({
+          ...prev,
+          fees: {
+            total: feesRes.data.totalFees || 0,
+            paid: feesRes.data.paidFees || 0,
+            due: feesRes.data.pendingFees || 0
+          }
+        }));
+      }
+    }
+    
+    setLoading(false);
+  };
+
+  const statCards = [
+    { 
+      label: 'Attendance', 
+      value: `${stats.attendance.rate}%`, 
+      icon: Calendar, 
+      color: '#3b82f6',
+      bg: '#eff6ff'
+    },
+    { 
+      label: 'Fee Status', 
+      value: stats.fees.due > 0 ? 'Pending' : 'Paid', 
+      icon: DollarSign, 
+      color: stats.fees.due > 0 ? '#eab308' : '#22c55e',
+      bg: stats.fees.due > 0 ? '#fef3c7' : '#d1fae5'
+    },
+    { 
+      label: 'Due Amount', 
+      value: `₹${stats.fees.due.toLocaleString()}`, 
+      icon: AlertCircle, 
+      color: stats.fees.due > 0 ? '#ef4444' : '#22c55e',
+      bg: stats.fees.due > 0 ? '#fee2e2' : '#d1fae5'
+    },
+    { 
+      label: 'Room', 
+      value: user?.room_number || 'Not Assigned', 
+      icon: Home, 
+      color: '#8b5cf6',
+      bg: '#ede9fe'
+    },
   ];
 
-  const recentActivity = [
-    { title: 'Attendance marked for today', date: 'Today, 09:00 AM', status: 'present' },
-    { title: 'Fee payment reminder', date: 'Yesterday', status: 'pending' },
-    { title: 'New notice: Hostel Maintenance', date: 'Apr 12, 2026', status: 'read' },
-    { title: 'Complaint resolved: AC not working', date: 'Apr 10, 2026', status: 'resolved' },
-  ];
-
-  const upcomingEvents = [
-    { title: 'Mess Committee Meeting', date: 'Apr 20, 2026', time: '6:00 PM' },
-    { title: 'Room Inspection', date: 'Apr 25, 2026', time: '10:00 AM' },
-    { title: 'Fee Payment Deadline', date: 'Apr 30, 2026', time: '11:59 PM' },
-  ];
-
-  const actions = [
+  const quickActions = [
     { label: 'View Attendance', path: '/student/attendance' },
     { label: 'Pay Fees', path: '/student/fees' },
     { label: 'Submit Complaint', path: '/student/complaints' },
     { label: 'View Notices', path: '/student/notices' },
   ];
 
-  const statusColor = (status) => {
-    if (status === 'present' || status === 'resolved') return 'var(--status-green)';
-    if (status === 'pending') return 'var(--status-yellow)';
-    return 'var(--text-tertiary)';
-  };
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <div>Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* Stats */}
+      {/* Welcome Section */}
+      <div style={{ marginBottom: '24px' }}>
+        <h1 className="page-title">Welcome back, {user?.name}!</h1>
+        <p className="page-subtitle">Here's your hostel activity summary</p>
+      </div>
+
+      {/* Stats Cards */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {stats.map((stat, idx) => (
+        {statCards.map((stat, idx) => (
           <div key={idx} className="stat-card">
-            <div className={`p-2 rounded-lg ${stat.bg} inline-block mb-3`}>
-              <stat.icon size={20} className={stat.color} />
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: stat.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+              <stat.icon size={18} color={stat.color} />
             </div>
             <div className="stat-card-label">{stat.label}</div>
             <div className="stat-card-value">{stat.value}</div>
@@ -54,11 +124,15 @@ export default function StudentDashboard() {
         ))}
       </div>
 
-      {/* Activity + Events */}
-      <div className="two-column-grid">
-        <div className="activity-list">
-          <h3>Recent Activity</h3>
-          {recentActivity.map((activity, idx) => (
+      {/* Recent Activity */}
+      <div className="activity-list" style={{ marginTop: '24px' }}>
+        <h3>Recent Activity</h3>
+        {recentActivity.length === 0 ? (
+          <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '32px' }}>
+            No recent activity
+          </p>
+        ) : (
+          recentActivity.map((activity, idx) => (
             <div key={idx} className="activity-item">
               <div className="activity-item-content">
                 <div className="activity-item-title">{activity.title}</div>
@@ -66,40 +140,20 @@ export default function StudentDashboard() {
               </div>
               <div
                 className="activity-item-time"
-                style={{ color: statusColor(activity.status) }}
+                style={{ color: activity.status === 'present' ? '#22c55e' : '#ef4444' }}
               >
                 {activity.status}
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="activity-list">
-          <h3>Upcoming Events</h3>
-          {upcomingEvents.map((event, idx) => (
-            <div key={idx} className="activity-item">
-              <div className="activity-item-content">
-                <div className="activity-item-title">{event.title}</div>
-                <div className="activity-item-meta">{event.time}</div>
-              </div>
-              <div className="activity-item-time">{event.date}</div>
-            </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
 
       {/* Quick Actions */}
       <div className="activity-list" style={{ marginTop: '24px' }}>
         <h3>Quick Actions</h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '12px',
-            marginTop: '12px',
-          }}
-        >
-          {actions.map((action) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '12px' }}>
+          {quickActions.map((action) => (
             <button
               key={action.label}
               onClick={() => navigate(action.path)}
