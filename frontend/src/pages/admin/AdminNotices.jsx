@@ -30,7 +30,8 @@ export default function AdminNotices() {
       title: formData.title,
       content: formData.content,
       category: formData.category,
-      is_important: formData.is_important
+      is_important: formData.is_important,
+      is_active: true
     });
     
     if (response.success) {
