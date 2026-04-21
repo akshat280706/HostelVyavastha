@@ -1,68 +1,99 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { authService } from '../services/api';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
-// Sample student data for demo
-const studentUser = {
-  id: 101,
-  name: 'Rajesh Kumar',
-  role: 'student',
-  rollNumber: '2021001',
-  roomNumber: 'A-101',
-  email: 'rajesh@university.edu',
-  phone: '9876543210',
-  parentPhone: '9876543200',
-  address: 'Room A-101, Hostel Block A',
-  joiningDate: '2024-06-15'
-};
-
-const adminUser = {
-  id: 1,
-  name: 'Warden',
-  role: 'admin',
-  email: 'admin@hostel.edu'
-};
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check localStorage for existing session
-    const savedUser = localStorage.getItem('hostelUser');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    // Check for existing session on app load
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
+      if (token && savedUser) {
+        try {
+          // Verify token is still valid
+          const response = await authService.getMe();
+          if (response.success) {
+            setUser(response.data);
+          } else {
+            // Token invalid, clear storage
+            authService.logout();
+            setUser(null);
+          }
+        } catch (err) {
+          authService.logout();
+          setUser(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
-  const login = (email, password, role) => {
-    // Demo login - in real app, this would be an API call
-    let userData = null;
+  // Login function
+  const login = async (email, password) => {
+    setError(null);
+    const response = await authService.login(email, password);
     
-    if (role === 'admin' && email === 'admin@hostel.edu') {
-      userData = adminUser;
-    } else if (role === 'student') {
-      userData = { ...studentUser, email };
+    if (response.success) {
+      setUser(response.data);
+      return { success: true };
+    } else {
+      setError(response.message);
+      return { success: false, error: response.message };
     }
-    
-    if (userData) {
-      setUser(userData);
-      localStorage.setItem('hostelUser', JSON.stringify(userData));
-      return true;
-    }
-    return false;
   };
 
+  // Register function
+  const register = async (userData) => {
+    setError(null);
+    const response = await authService.register(userData);
+    
+    if (response.success) {
+      setUser(response.data);
+      return { success: true };
+    } else {
+      setError(response.message);
+      return { success: false, error: response.message };
+    }
+  };
+
+  // Logout function
   const logout = () => {
+    authService.logout();
     setUser(null);
-    localStorage.removeItem('hostelUser');
+  };
+
+  // Update user in state
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
+  const value = {
+    user,
+    loading,
+    error,
+    login,
+    register,
+    logout,
+    updateUser,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
+    isWarden: user?.role === 'warden',
+    isStudent: user?.role === 'student',
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
