@@ -162,10 +162,10 @@ VITE_API_URL=http://localhost:5001/api
 
 #Contributors
 
-* Akshat Chauhan[github.com/akshat280706]
-* Bhavya Gothi[github.com/Bhavya4523]
-* Aryan Daga[github.com/dagaaryan011]
-* Jehan Bhdeda[github.com/jehanbheda]
+* [Akshat Chauhan](github.com/akshat280706)
+* [Bhavya Gothi](github.com/Bhavya4523)
+* [Aryan Daga](github.com/dagaaryan011)
+* [Jehan Bhdeda](github.com/jehanbheda)
 
 
 ---
