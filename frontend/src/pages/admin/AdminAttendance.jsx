@@ -66,27 +66,25 @@ export default function AdminAttendance() {
   };
 
   const markAttendance = async (studentId, status) => {
-    setSubmitting(true);
-    const response = await attendanceService.markAttendance({
-      studentId,
-      status,
-      checkInTime: status === 'present' ? new Date().toLocaleTimeString() : null
-    });
-    
-    if (response.success) {
-      toast.success(`Attendance marked as ${status}`);
-      // Update local state
-      setStudents(prev => prev.map(student => 
-        student.id === studentId 
-          ? { ...student, status, checkIn: status === 'present' ? new Date().toLocaleTimeString() : null }
-          : student
-      ));
-    } else {
-      toast.error(response.message || 'Failed to mark attendance');
-    }
-    setSubmitting(false);
-  };
-
+  setSubmitting(true);
+  
+  // IMPORTANT: Send the selected date with the attendance mark
+  const response = await attendanceService.markAttendance({
+    studentId,
+    status,
+    date: selectedDate,  // ← ADD THIS - send the selected date!
+    checkInTime: status === 'present' ? new Date().toLocaleTimeString() : null
+  });
+  
+  if (response.success) {
+    toast.success(`Attendance marked as ${status} for ${selectedDate}`);
+    // Refresh attendance for the current selected date only
+    await fetchAttendanceForDate();  // This re-fetches data for the selected date
+  } else {
+    toast.error(response.message || 'Failed to mark attendance');
+  }
+  setSubmitting(false);
+};
   const filteredStudents = students.filter(student => {
     const matchesSearch =
       student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||

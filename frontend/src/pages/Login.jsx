@@ -82,13 +82,13 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Demo credentials note */}
+        {/* Demo credentials note
         <div className="demo-note" style={{ marginTop: '20px', padding: '12px', background: '#f0fdf4', borderRadius: '8px' }}>
           <p className="text-xs text-green-800 mb-1">Demo Credentials:</p>
           <p className="text-xs text-green-700">Admin: admin@hostel.edu / password123</p>
           <p className="text-xs text-green-700">Student: student@university.edu / password123</p>
           <p className="text-xs text-gray-500 mt-2">Note: Create users via registration or add them in Supabase</p>
-        </div>
+        </div> */}
       </div>
     </div>
   );

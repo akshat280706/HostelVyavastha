@@ -3,29 +3,23 @@ const supabase = require('../config/supabase');
 // MARK ATTENDANCE
 const markAttendance = async (req, res) => {
   try {
-    const { studentId, status, checkInTime } = req.body;
-
-    if (!studentId || !status) {
-      return res.status(400).json({
-        success: false,
-        message: 'studentId and status are required'
-      });
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-
-    const { data: existing, error: fetchError } = await supabase
+    const { studentId, status, checkInTime, date } = req.body;  // ← Add date
+    
+    // Use provided date or default to today
+    const attendanceDate = date || new Date().toISOString().split('T')[0];
+    
+    // Check if attendance already exists for this student on this specific date
+    const { data: existing } = await supabase
       .from('attendance')
       .select('id')
       .eq('student_id', studentId)
-      .eq('date', today)
+      .eq('date', attendanceDate)  // ← Use the specific date!
       .maybeSingle();
-
-    if (fetchError) throw fetchError;
-
+    
     let result;
-
+    
     if (existing) {
+      // Update existing record for that specific date
       const { data, error } = await supabase
         .from('attendance')
         .update({
@@ -36,29 +30,30 @@ const markAttendance = async (req, res) => {
         .eq('id', existing.id)
         .select()
         .single();
-
+      
       if (error) throw error;
       result = data;
     } else {
+      // Create new record for that specific date
       const { data, error } = await supabase
         .from('attendance')
         .insert([{
           student_id: studentId,
-          date: today,
+          date: attendanceDate,  // ← Use the specific date!
           status,
           check_in_time: checkInTime,
           marked_by: req.user.id
         }])
         .select()
         .single();
-
+      
       if (error) throw error;
       result = data;
     }
-
+    
     res.json({
       success: true,
-      message: 'Attendance marked successfully',
+      message: `Attendance marked as ${status} for ${attendanceDate}`,
       data: result
     });
   } catch (error) {
@@ -68,7 +63,6 @@ const markAttendance = async (req, res) => {
     });
   }
 };
-
 
 
 // GET ATTENDANCE

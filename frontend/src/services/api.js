@@ -132,16 +132,23 @@ export const dashboardService = {
 export const attendanceService = {
   // Mark attendance (Admin)
   markAttendance: async (data) => {
-    try {
-      const response = await api.post('/attendance/mark', data);
-      return response.data;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to mark attendance',
-      };
-    }
-  },
+  try {
+    // Make sure date is included
+    const payload = {
+      studentId: data.studentId,
+      status: data.status,
+      checkInTime: data.checkInTime || null,
+      date: data.date || new Date().toISOString().split('T')[0]  // ← Add date
+    };
+    const response = await api.post('/attendance/mark', payload);
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to mark attendance',
+    };
+  }
+},
 
   // Get all attendance records
   getAttendance: async (filters = {}) => {

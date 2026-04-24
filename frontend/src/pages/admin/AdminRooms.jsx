@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { roomService, userService } from '../../services/api';
-import { Search, Users, Bed, Plus, X } from 'lucide-react';
+import { Search, Plus, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function AdminRooms() {
@@ -9,7 +9,9 @@ export default function AdminRooms() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [selectedStudentForRoom, setSelectedStudentForRoom] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showAssignRoomModal, setShowAssignRoomModal] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -18,13 +20,11 @@ export default function AdminRooms() {
   const fetchData = async () => {
     setLoading(true);
     
-    // Fetch rooms
     const roomsRes = await roomService.getRooms({ limit: 100 });
     if (roomsRes.success) {
       setRooms(roomsRes.data || []);
     }
     
-    // Fetch students for assignment
     const studentsRes = await userService.getStudents({ limit: 100 });
     if (studentsRes.success) {
       setStudents(studentsRes.data || []);
@@ -37,9 +37,11 @@ export default function AdminRooms() {
     const response = await roomService.assignStudent(roomId, studentId);
     if (response.success) {
       toast.success('Student assigned successfully');
-      fetchData(); // Refresh data
+      fetchData();
       setShowAssignModal(false);
+      setShowAssignRoomModal(false);
       setSelectedRoom(null);
+      setSelectedStudentForRoom(null);
     } else {
       toast.error(response.message || 'Failed to assign student');
     }
@@ -78,6 +80,7 @@ export default function AdminRooms() {
 
   return (
     <div>
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 className="page-title" style={{ margin: 0 }}>Room Management</h1>
         <button 
@@ -118,17 +121,7 @@ export default function AdminRooms() {
                 borderRadius: '12px', 
                 border: '1px solid #e2e8f0',
                 padding: '20px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -173,11 +166,8 @@ export default function AdminRooms() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     fontSize: '14px',
-                    fontWeight: '500',
-                    transition: 'background 0.2s'
+                    fontWeight: '500'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#3b82f6'}
                 >
                   Allocate Student
                 </button>
@@ -211,15 +201,19 @@ export default function AdminRooms() {
                     <td style={{ padding: '12px 16px', color: '#64748b' }}>{student.email}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <button
-                        onClick={() => toast.info('Select a room first')}
+                        onClick={() => {
+                          setSelectedStudentForRoom(student);
+                          setShowAssignRoomModal(true);
+                        }}
                         style={{
-                          padding: '4px 12px',
+                          padding: '6px 14px',
                           borderRadius: '6px',
-                          border: '1px solid #3b82f6',
-                          background: 'white',
-                          color: '#3b82f6',
+                          border: 'none',
+                          background: '#22c55e',
+                          color: 'white',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: '500'
                         }}
                       >
                         Assign to Room
@@ -240,7 +234,7 @@ export default function AdminRooms() {
         </div>
       </div>
 
-      {/* Assign Modal */}
+      {/* Modal: Assign Student to Room (from room card) */}
       {showAssignModal && selectedRoom && (
         <div style={{
           position: 'fixed',
@@ -252,57 +246,97 @@ export default function AdminRooms() {
           zIndex: 50,
           padding: '16px'
         }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            maxWidth: '500px',
-            width: '100%',
-            maxHeight: '80vh',
-            overflow: 'auto'
-          }}>
+          <div style={{ background: 'white', borderRadius: '12px', maxWidth: '500px', width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#0f172a' }}>Assign Student</h3>
-                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>Room {selectedRoom.room_number} (Capacity: {selectedRoom.capacity})</p>
+                <h3 style={{ fontSize: '18px', fontWeight: '600' }}>Assign Student to Room</h3>
+                <p style={{ fontSize: '13px', color: '#64748b' }}>Room {selectedRoom.room_number} (Capacity: {selectedRoom.capacity - selectedRoom.current_occupancy} seats left)</p>
               </div>
-              <button onClick={() => setShowAssignModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={20} />
+              <button onClick={() => setShowAssignModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Select Student</label>
+              <select
+                id="studentSelect"
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+              >
+                <option value="">-- Select a student --</option>
+                {unassignedStudents.map(student => (
+                  <option key={student.id} value={student.id}>
+                    {student.name} ({student.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAssignModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={() => {
+                  const studentId = document.getElementById('studentSelect').value;
+                  if (!studentId) {
+                    toast.error('Please select a student');
+                    return;
+                  }
+                  handleAssignStudent(selectedRoom.id, studentId);
+                }}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer' }}
+              >
+                Assign
               </button>
             </div>
-            
-            <div style={{ padding: '20px 24px' }}>
-              <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px', color: '#0f172a' }}>Select Student:</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {unassignedStudents.map((student) => (
-                  <button
-                    key={student.id}
-                    onClick={() => handleAssignStudent(selectedRoom.id, student.id)}
-                    style={{
-                      padding: '12px 16px',
-                      textAlign: 'left',
-                      background: '#f8fafc',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#eff6ff';
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#f8fafc';
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                    }}
-                  >
-                    <div style={{ fontWeight: '500', color: '#0f172a' }}>{student.name}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>Roll: {student.roll_number || 'N/A'} • {student.email}</div>
-                  </button>
-                ))}
-                {unassignedStudents.length === 0 && (
-                  <p style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>No unassigned students available</p>
-                )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Assign Student to Room (from unassigned students table) */}
+      {showAssignRoomModal && selectedStudentForRoom && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+          padding: '16px'
+        }}>
+          <div style={{ background: 'white', borderRadius: '12px', maxWidth: '500px', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '600' }}>Assign Student to Room</h3>
+                <p style={{ fontSize: '13px', color: '#64748b' }}>Student: {selectedStudentForRoom.name}</p>
               </div>
+              <button onClick={() => setShowAssignRoomModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Select Room</label>
+              <select
+                id="roomSelect"
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+              >
+                <option value="">-- Select a room --</option>
+                {rooms.filter(room => room.current_occupancy < room.capacity).map(room => (
+                  <option key={room.id} value={room.id}>
+                    Room {room.room_number} - {room.capacity - room.current_occupancy} seats available
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAssignRoomModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={() => {
+                  const roomId = document.getElementById('roomSelect').value;
+                  if (!roomId) {
+                    toast.error('Please select a room');
+                    return;
+                  }
+                  handleAssignStudent(roomId, selectedStudentForRoom.id);
+                }}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer' }}
+              >
+                Assign
+              </button>
             </div>
           </div>
         </div>
